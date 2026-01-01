@@ -1,0 +1,127 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>存证系统</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <div class="topbar">
+        <header class="brand">
+          <h1>存证系统v1.2.0</h1>
+          <p>极简工作台 · 快速上传、验证与管理存证记录</p>
+        </header>
+        <a class="nav-link" id="loginLink" href="/static/login.html">登录</a>
+      </div>
+      <section class="grid">
+        <div class="card">
+          <a href="/static/upload.html">
+            <div class="badge">UPLOAD</div>
+            <div class="card-title">存证上传</div>
+            <div class="hint">上传文件或文本生成存证记录，支持 OTS / TSA 证书。</div>
+          </a>
+        </div>
+        <div class="card">
+          <a href="/static/verify.html">
+            <div class="badge">VERIFY</div>
+            <div class="card-title">存证验证</div>
+            <div class="hint">校验 Hash 与凭证状态，快速确认记录有效性。</div>
+          </a>
+        </div>
+        <div class="card requires-auth" id="manageCard">
+          <a href="/static/manage.html">
+            <div class="badge">MANAGE</div>
+            <div class="card-title">存证管理</div>
+            <div class="hint">查看存证列表、下载凭证、管理运行日志。</div>
+          </a>
+        </div>
+      </section>
+      <div class="footer">
+        <div class="footer-line">
+          <span>Build minimal. Keep evidence verifiable.</span>
+          <a href="https://github.com/ZHYCarge/valid-tools">关于</a>
+        </div>
+        <p><div id="recordInfo" class="footer-link hidden"></div></p>
+      </div>
+    </div>
+  
+    <script>
+      const loginLink = document.getElementById("loginLink");
+      const manageCard = document.getElementById("manageCard");
+      const recordInfo = document.getElementById("recordInfo");
+      if (manageCard) {
+        manageCard.style.display = "none";
+      }
+      async function refreshAuth() {
+        const resp = await fetch("/api/auth/me");
+        const data = await resp.json();
+        if (data.authenticated && manageCard) {
+          manageCard.style.display = "block";
+          if (loginLink) {
+            loginLink.textContent = "退出";
+            loginLink.href = "#";
+          }
+        }
+      }
+
+      async function logout() {
+        await fetch("/api/auth/logout", { method: "POST" });
+        window.location.reload();
+      }
+
+      if (loginLink) {
+        loginLink.addEventListener("click", (event) => {
+          if (loginLink.textContent === "退出") {
+            event.preventDefault();
+            logout();
+          }
+        });
+      }
+
+      function renderRecordInfo(target, icpText, mpsText) {
+        if (!target) return;
+        const icp = String(icpText || "").trim();
+        const mps = String(mpsText || "").trim();
+        target.textContent = "";
+        if (!icp && !mps) {
+          target.classList.add("hidden");
+          return;
+        }
+        if (icp) {
+          const icpLink = document.createElement("a");
+          icpLink.href = "https://beian.miit.gov.cn";
+          icpLink.target = "_blank";
+          icpLink.rel = "noopener";
+          icpLink.textContent = icp;
+          target.appendChild(icpLink);
+        }
+        if (icp && mps) {
+          const sep = document.createElement("span");
+          sep.className = "record-sep";
+          sep.textContent = "|";
+          target.appendChild(sep);
+        }
+        if (mps) {
+          const mpsLink = document.createElement("a");
+          mpsLink.href = "https://beian.mps.gov.cn/#/query/webSearch";
+          mpsLink.target = "_blank";
+          mpsLink.rel = "noopener";
+          mpsLink.textContent = mps;
+          target.appendChild(mpsLink);
+        }
+        target.classList.remove("hidden");
+      }
+
+      async function refreshFooterInfo() {
+        const resp = await fetch("/api/site-info");
+        const data = await resp.json();
+        renderRecordInfo(recordInfo, data.icp_info, data.mps_info);
+      }
+
+      refreshAuth();
+      refreshFooterInfo();
+    </script>
+</body>
+</html>

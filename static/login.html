@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>登录</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <div class="topbar">
+        <div class="brand">
+          <h1>登录</h1>
+          <p>登录后可保存存证记录并访问管理页面。</p>
+        </div>
+        <a class="nav-link" href="/static/index.html">返回首页</a>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">账号登录</h2>
+            <span class="hint" id="statusLine">请输入账号密码</span>
+          </div>
+          <form id="loginForm" class="form">
+            <div class="field">
+              <label>用户名</label>
+              <input type="text" id="username" autocomplete="username" required />
+            </div>
+            <div class="field">
+              <label>密码</label>
+              <input type="password" id="password" autocomplete="current-password" required />
+            </div>
+            <div class="row">
+              <button type="submit" class="btn">登录</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const form = document.getElementById("loginForm");
+      const statusLine = document.getElementById("statusLine");
+
+      async function checkAuth() {
+        const resp = await fetch("/api/auth/me");
+        const data = await resp.json();
+        if (data.authenticated) {
+          window.location.href = "/static/index.html";
+        }
+      }
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        statusLine.textContent = "登录中...";
+        const body = new FormData();
+        body.append("username", document.getElementById("username").value);
+        body.append("password", document.getElementById("password").value);
+        const resp = await fetch("/api/auth/login", {
+          method: "POST",
+          body,
+        });
+        if (!resp.ok) {
+          statusLine.textContent = "登录失败，请检查账号密码";
+          return;
+        }
+        statusLine.textContent = "登录成功，正在跳转...";
+        window.location.href = "/static/index.html";
+      });
+
+      checkAuth();
+    </script>
+  </body>
+</html>

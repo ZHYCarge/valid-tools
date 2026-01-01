@@ -1,0 +1,217 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>存证管理</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <div class="topbar">
+        <div class="brand">
+          <h1>存证管理</h1>
+          <p>查看存证记录、下载凭证、管理日志。</p>
+        </div>
+        <a class="nav-link" href="/static/index.html">返回首页</a>
+      </div>
+
+      <div class="stack">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">存证列表</h2>
+            <button id="refreshBtn" class="btn secondary">刷新列表</button>
+          </div>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Hash</th>
+                <th>OTS</th>
+                <th>TSA</th>
+                <th>创建时间</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">日志管理</h2>
+            <div class="row">
+              <label class="hint">
+                在线查看行数
+                <input type="number" id="logLimit" value="50" min="1" />
+              </label>
+              <button id="refreshLogsBtn" class="btn secondary">刷新日志</button>
+            </div>
+          </div>
+          <div class="grid">
+            <div>
+              <ul id="logList" class="json-viewer"></ul>
+            </div>
+            <div>
+              <div class="hint">日志预览</div>
+              <pre id="logView"></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="deleteDialog" class="modal">
+      <div class="modal-content">
+        <p>在删除之前是否保存相关文件？</p>
+        <div class="row">
+          <button id="saveBeforeDeleteBtn" class="btn secondary">保存</button>
+          <button id="confirmDeleteBtn" class="btn">确定删除</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const tableBody = document.getElementById("tableBody");
+      const refreshBtn = document.getElementById("refreshBtn");
+      const logList = document.getElementById("logList");
+      const refreshLogsBtn = document.getElementById("refreshLogsBtn");
+      const logView = document.getElementById("logView");
+      const logLimit = document.getElementById("logLimit");
+      const deleteDialog = document.getElementById("deleteDialog");
+      const saveBeforeDeleteBtn = document.getElementById("saveBeforeDeleteBtn");
+      const confirmDeleteBtn = document.getElementById("confirmDeleteBtn");
+
+      function showDeleteDialog() {
+        deleteDialog.style.display = "flex";
+        return new Promise((resolve) => {
+          const onSave = () => {
+            cleanup();
+            resolve("save");
+          };
+          const onDelete = () => {
+            cleanup();
+            resolve("delete");
+          };
+          const cleanup = () => {
+            deleteDialog.style.display = "none";
+            saveBeforeDeleteBtn.removeEventListener("click", onSave);
+            confirmDeleteBtn.removeEventListener("click", onDelete);
+          };
+          saveBeforeDeleteBtn.addEventListener("click", onSave);
+          confirmDeleteBtn.addEventListener("click", onDelete);
+        });
+      }
+
+      function badge(text) {
+        const span = document.createElement("span");
+        span.className = "badge";
+        const normalized = String(text).toLowerCase();
+        if (normalized.includes("fail") || normalized.includes("error")) {
+          span.classList.add("danger");
+        } else if (normalized.includes("disable")) {
+          span.classList.add("warn");
+        }
+        span.textContent = text;
+        return span;
+      }
+
+      function downloadFile(url) {
+        return new Promise((resolve) => {
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = "";
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          setTimeout(resolve, 200);
+        });
+      }
+
+      async function loadList() {
+        const resp = await fetch("/api/evidence/list");
+        const data = await resp.json();
+        tableBody.innerHTML = "";
+        data.items.forEach((item) => {
+          const tr = document.createElement("tr");
+          const otsLink =
+            item.ots_status === "disabled"
+              ? ""
+              : `<a href="/api/files/${item.hash}/ots">OTS</a>`;
+          const tsaLink =
+            item.tsa_status === "disabled"
+              ? ""
+              : `<a href="/api/files/${item.hash}/tsa">TSA</a>`;
+          tr.innerHTML = `
+            <td>${item.hash}</td>
+            <td></td>
+            <td></td>
+            <td>${item.created_at}</td>
+            <td>
+              ${otsLink}
+              ${tsaLink}
+              <button data-hash="${item.hash}" class="btn ghost">删除</button>
+            </td>
+          `;
+          tr.children[1].appendChild(badge(item.ots_status));
+          tr.children[2].appendChild(badge(item.tsa_status));
+          const btn = tr.querySelector("button");
+          btn.addEventListener("click", async () => {
+            const choice = await showDeleteDialog();
+            if (choice === "save") {
+              if (item.ots_status !== "disabled") {
+                await downloadFile(`/api/files/${item.hash}/ots`);
+              }
+              if (item.tsa_status !== "disabled") {
+                await downloadFile(`/api/files/${item.hash}/tsa`);
+              }
+            }
+            await fetch(`/api/evidence/${item.hash}?keep_files=false`, { method: "DELETE" });
+            loadList();
+          });
+          tableBody.appendChild(tr);
+        });
+      }
+
+      async function loadLogs() {
+        const resp = await fetch("/api/logs");
+        const data = await resp.json();
+        logList.innerHTML = "";
+        data.items.forEach((item) => {
+          const li = document.createElement("li");
+          li.className = "json-line";
+          const name = document.createElement("div");
+          name.className = "json-key";
+          name.textContent = item.name;
+          const actions = document.createElement("div");
+          actions.className = "json-value";
+          actions.innerHTML = `
+            <span class="hint">${item.size} bytes</span>
+            <a href="/api/logs/${item.name}">下载</a>
+            <button data-view="${item.name}" class="btn ghost">查看</button>
+            <button data-name="${item.name}" class="btn ghost">删除</button>
+          `;
+          const viewBtn = actions.querySelector("button[data-view]");
+          viewBtn.addEventListener("click", async () => {
+            const limit = parseInt(logLimit.value || "50", 10);
+            const resp = await fetch(`/api/logs/${item.name}/view?limit=${limit}`);
+            const text = await resp.text();
+            logView.textContent = text;
+          });
+          const btn = actions.querySelector("button[data-name]");
+          btn.addEventListener("click", async () => {
+            await fetch(`/api/logs/${item.name}`, { method: "DELETE" });
+            loadLogs();
+          });
+          li.appendChild(name);
+          li.appendChild(actions);
+          logList.appendChild(li);
+        });
+      }
+
+      refreshBtn.addEventListener("click", loadList);
+      refreshLogsBtn.addEventListener("click", loadLogs);
+      loadList();
+      loadLogs();
+    </script>
+  </body>
+</html>

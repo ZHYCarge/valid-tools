@@ -1,0 +1,378 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>存证上传</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <div class="topbar">
+        <div class="brand">
+          <h1>存证上传</h1>
+          <p>生成 Hash 并提交存证，完成后可下载 OTS / TSA 凭证。</p>
+        </div>
+        <a class="nav-link" href="/static/index.html">返回首页</a>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">上传内容</h2>
+            <span class="hint">文件或文本二选一</span>
+          </div>
+          <form id="uploadForm" class="form">
+            <div class="field">
+              <label>选择文件</label>
+              <input type="file" id="fileInput" />
+            </div>
+            <div class="field">
+              <label>或输入文本</label>
+              <textarea id="textInput" placeholder="在此粘贴需要存证的内容"></textarea>
+            </div>
+            <div class="field">
+              <label>计算得到的 Hash</label>
+              <input type="text" id="hashOutput" readonly />
+            </div>
+            <div class="options">
+              <span>存证类型</span>
+              <label><input type="checkbox" id="otsOption" checked /> OTS</label>
+              <label><input type="checkbox" id="tsaOption" checked /> TSA</label>
+            </div>
+            <div class="options">
+              <span>保存方式</span>
+              <label><input type="checkbox" id="saveOption" /> 保存到数据库</label>
+              <span class="hint">未保存时刷新页面凭证将消失</span>
+            </div>
+            <div class="row">
+              <button type="submit" class="btn">提交存证</button>
+              <button type="button" id="downloadBtn" class="btn secondary" disabled>
+                下载凭证
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">返回结果</h2>
+            <span class="hint" id="statusLine">等待提交</span>
+          </div>
+          <div id="readable" class="status-grid"></div>
+          <div class="divider"></div>
+          <div id="jsonViewer" class="json-viewer"></div>
+          <details>
+            <summary class="hint">原始 JSON</summary>
+            <pre id="output"></pre>
+          </details>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const form = document.getElementById("uploadForm");
+      const output = document.getElementById("output");
+      const jsonViewer = document.getElementById("jsonViewer");
+      const statusLine = document.getElementById("statusLine");
+      const downloadBtn = document.getElementById("downloadBtn");
+      const readable = document.getElementById("readable");
+      const saveOption = document.getElementById("saveOption");
+      let lastDownload = null;
+
+      async function sha256Hex(buffer) {
+        const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+      }
+
+      async function computeHash() {
+        const file = document.getElementById("fileInput").files[0];
+        const text = document.getElementById("textInput").value;
+        if (file) {
+          const buffer = await file.arrayBuffer();
+          return sha256Hex(buffer);
+        }
+        if (text) {
+          const buffer = new TextEncoder().encode(text);
+          return sha256Hex(buffer);
+        }
+        return "";
+      }
+
+      function createBadge(text) {
+        const badge = document.createElement("span");
+        badge.className = "badge";
+        const normalized = String(text).toLowerCase();
+        if (normalized.includes("fail") || normalized.includes("error")) {
+          badge.classList.add("danger");
+        } else if (normalized.includes("disable")) {
+          badge.classList.add("warn");
+        }
+        badge.textContent = text;
+        return badge;
+      }
+
+      function createStatusCard(title, statusClass, rows) {
+        const card = document.createElement("div");
+        card.className = `status-card ${statusClass}`;
+        const h3 = document.createElement("h3");
+        h3.textContent = title;
+        card.appendChild(h3);
+        const list = document.createElement("div");
+        list.className = "status-list";
+        rows.forEach(([label, value]) => {
+          const item = document.createElement("div");
+          item.className = "status-item";
+          const k = document.createElement("strong");
+          k.textContent = label;
+          const v = document.createElement("div");
+          v.textContent = value === null || value === undefined ? "-" : String(value);
+          item.appendChild(k);
+          item.appendChild(v);
+          list.appendChild(item);
+        });
+        card.appendChild(list);
+        return card;
+      }
+
+      function statusClassForStatus(value) {
+        if (!value) return "warn";
+        const normalized = String(value).toLowerCase();
+        if (normalized.includes("success")) return "success";
+        if (normalized.includes("disable")) return "warn";
+        if (normalized.includes("pending")) return "warn";
+        if (normalized.includes("fail")) return "error";
+        return "warn";
+      }
+
+      function renderReadable(data) {
+        readable.innerHTML = "";
+        if (!data || typeof data !== "object") {
+          return;
+        }
+        const summary = createStatusCard(
+          "总体状态",
+          data.saved ? "success" : "warn",
+          [
+            ["Hash", data.hash],
+            ["保存方式", data.saved ? "已保存到数据库" : "仅临时生成"],
+            [
+              "下载名称",
+              data.download_name_base ? `${data.download_name_base}.ots/.tsr` : "-",
+            ],
+          ]
+        );
+        readable.appendChild(summary);
+
+        const otsCard = createStatusCard(
+          "OTS 生成",
+          statusClassForStatus(data.ots_status),
+          [
+            ["状态", data.ots_status],
+            ["错误信息", data.ots_error || "-"],
+          ]
+        );
+        readable.appendChild(otsCard);
+
+        const tsaCard = createStatusCard(
+          "TSA 生成",
+          statusClassForStatus(data.tsa_status),
+          [
+            ["状态", data.tsa_status],
+            ["错误信息", data.tsa_error || "-"],
+          ]
+        );
+        readable.appendChild(tsaCard);
+      }
+
+      function renderJsonViewer(data) {
+        jsonViewer.innerHTML = "";
+        if (!data || typeof data !== "object") {
+          jsonViewer.textContent = String(data || "");
+          return;
+        }
+        Object.entries(data).forEach(([key, value]) => {
+          const line = document.createElement("div");
+          line.className = "json-line";
+          const k = document.createElement("div");
+          k.className = "json-key";
+          k.textContent = key;
+          const v = document.createElement("div");
+          v.className = "json-value";
+          if (key === "download" && value && typeof value === "object") {
+            const links = ["ots", "tsa"]
+              .map((type) => {
+                if (!value[type]) return null;
+                const a = document.createElement("a");
+                a.href = value[type];
+                a.target = "_blank";
+                a.rel = "noopener";
+                a.textContent = `${type.toUpperCase()} 下载`;
+                return a;
+              })
+              .filter(Boolean);
+            if (links.length === 0) {
+              v.textContent = "-";
+            } else {
+              links.forEach((link, index) => {
+                if (index > 0) v.append(" ");
+                v.appendChild(link);
+              });
+            }
+          } else if (key === "download_inline" && value && typeof value === "object") {
+            const items = [];
+            if (value.ots) items.push("OTS 可下载");
+            if (value.tsa) items.push("TSA 可下载");
+            v.textContent = items.length ? items.join(" · ") : "-";
+          } else if (key.endsWith("status")) {
+            v.appendChild(createBadge(value));
+          } else if (value && typeof value === "object") {
+            v.textContent = JSON.stringify(value);
+          } else {
+            v.textContent = value === null || value === undefined ? "-" : String(value);
+          }
+          line.appendChild(k);
+          line.appendChild(v);
+          jsonViewer.appendChild(line);
+        });
+      }
+
+      function base64ToBlob(base64) {
+        const binary = atob(base64);
+        const length = binary.length;
+        const bytes = new Uint8Array(length);
+        for (let i = 0; i < length; i += 1) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        return new Blob([bytes]);
+      }
+
+      function triggerDownload(filename, base64) {
+        const blob = base64ToBlob(base64);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      }
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const body = new FormData();
+        const hash = await computeHash();
+        const otsEnabled = document.getElementById("otsOption").checked;
+        const tsaEnabled = document.getElementById("tsaOption").checked;
+        const saveEnabled = document.getElementById("saveOption").checked;
+        const file = document.getElementById("fileInput").files[0];
+        if (!hash) {
+          statusLine.textContent = "请上传文件或输入文本";
+          return;
+        }
+        if (!otsEnabled && !tsaEnabled) {
+          statusLine.textContent = "请选择 OTS 或 TSA";
+          return;
+        }
+        lastDownload = null;
+        downloadBtn.disabled = true;
+        document.getElementById("hashOutput").value = hash;
+        body.append("hash_value", hash);
+        body.append("ots_option", otsEnabled ? "enable" : "disable");
+        body.append("tsa_option", tsaEnabled ? "enable" : "disable");
+        body.append("save_option", saveEnabled ? "enable" : "disable");
+        if (!saveEnabled && file) {
+          body.append("source_name", file.name);
+        }
+        statusLine.textContent = "提交中...";
+        const resp = await fetch("/api/evidence/upload", {
+          method: "POST",
+          body,
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          output.textContent = JSON.stringify(data, null, 2);
+          statusLine.textContent =
+            resp.status === 403 ? "请先登录后保存到数据库" : "提交失败";
+          renderReadable(null);
+          renderJsonViewer(null);
+          return;
+        }
+        output.textContent = JSON.stringify(data, null, 2);
+        renderReadable(data);
+        renderJsonViewer(data);
+        if (data.saved) {
+          statusLine.textContent = "返回成功";
+          lastDownload = {
+            mode: "url",
+            ots: data.download && data.download.ots && data.ots_status === "success" ? data.download.ots : null,
+            tsa: data.download && data.download.tsa && data.tsa_status === "success" ? data.download.tsa : null,
+          };
+        } else {
+          statusLine.textContent = "未保存到后端，刷新页面凭证将消失";
+          const inline = data.download_inline || {};
+          lastDownload = {
+            mode: "inline",
+            ots: inline.ots && data.ots_status === "success" ? inline.ots : null,
+            tsa: inline.tsa && data.tsa_status === "success" ? inline.tsa : null,
+          };
+        }
+        downloadBtn.disabled = !(lastDownload.ots || lastDownload.tsa);
+        if (!downloadBtn.disabled) {
+          const confirmDownload = window.confirm("是否下载凭证文件?");
+          if (confirmDownload) {
+            if (lastDownload.mode === "inline") {
+              if (lastDownload.ots) {
+                triggerDownload(lastDownload.ots.filename, lastDownload.ots.content_base64);
+              }
+              if (lastDownload.tsa) {
+                triggerDownload(lastDownload.tsa.filename, lastDownload.tsa.content_base64);
+              }
+            } else {
+              if (lastDownload.ots) {
+                window.open(lastDownload.ots, "_blank");
+              }
+              if (lastDownload.tsa) {
+                window.open(lastDownload.tsa, "_blank");
+              }
+            }
+          }
+        }
+      });
+
+      downloadBtn.addEventListener("click", () => {
+        if (!lastDownload) {
+          return;
+        }
+        if (lastDownload.mode === "inline") {
+          if (lastDownload.ots) {
+            triggerDownload(lastDownload.ots.filename, lastDownload.ots.content_base64);
+          }
+          if (lastDownload.tsa) {
+            triggerDownload(lastDownload.tsa.filename, lastDownload.tsa.content_base64);
+          }
+          return;
+        }
+        if (lastDownload.ots) {
+          window.open(lastDownload.ots, "_blank");
+        }
+        if (lastDownload.tsa) {
+          window.open(lastDownload.tsa, "_blank");
+        }
+      });
+
+      async function enforceAuthForSave() {
+        const resp = await fetch("/api/auth/me");
+        const data = await resp.json();
+        if (!data.authenticated) {
+          saveOption.checked = false;
+          saveOption.disabled = true;
+        }
+      }
+
+      enforceAuthForSave();
+    </script>
+  </body>
+</html>

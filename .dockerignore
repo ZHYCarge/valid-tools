@@ -1,0 +1,6 @@
+**/__pycache__/
+**/*.pyc
+.venv/
+data/
+*.log
+app/run_test.py
