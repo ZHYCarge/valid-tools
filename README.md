@@ -1,8 +1,14 @@
 ﻿# 司法取向 OpenTimestamps + TSA 存证系统
 
-## 项目概述
-本项目提供基于 OpenTimestamps 与 RFC3161 TSA 的存证与验证服务，支持文件/文本存证、验证、管理、日志导出与删除，并具备 SQLite 迁移与 Docker 部署能力。
+[![Docker Image Version (latest semver)](https://img.shields.io/docker/v/zhycarge/valid-tools?sort=semver)](https://hub.docker.com/repository/docker/zhycarge/valid-tools/)
+[![Docker Image Size](https://img.shields.io/docker/image-size/zhycarge/valid-tools/latest)](https://hub.docker.com/repository/docker/zhycarge/valid-tools/)
 
+
+## 项目概述
+
+> 本项目为个人想法与GPT-5.2-Codex进行实现，其中绝大部分代码均由AI完成。
+
+本项目提供基于 OpenTimestamps 与 RFC3161 TSA 的存证与验证服务，支持文件/文本存证、验证、管理、日志导出与删除，并具备 SQLite 迁移与 Docker 部署能力。
 前端提供四个页面：上传、验证、管理与首页导航，并对返回的 JSON 进行可视化解析与状态高亮（成功/失败/警告）。
 
 ## 目录结构
@@ -32,7 +38,7 @@ README.md
 ```
 pip install -r requirements.txt
 ```
-2. 设置 TSA URL（不太可选）
+2. 设置 TSA URL
 ```
 set TSA_URL=https://freetsa.org/tsr
 ```
@@ -55,7 +61,7 @@ http://localhost:8000/
 ```
 docker build -t zhycarge/valid-tools .
 ```
-2. 运行容器（带数据持久化）
+2. 运行容器
 ```
 docker run -d \
   -p 8000:8000 \ 
@@ -131,6 +137,12 @@ docker run -d \
 - `/static/upload.html` 存证上传
 - `/static/verify.html` 存证验证
 - `/static/manage.html` 存证管理（需基础认证）
+
+## Third-Party Licenses
+
+This project uses third-party libraries licensed under MIT, BSD-3-Clause,
+and LGPL-3.0. See THIRD_PARTY_NOTICES for details.
+
 
 # 版本更新
 

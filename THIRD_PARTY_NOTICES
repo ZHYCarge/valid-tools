@@ -1,0 +1,26 @@
+Third-Party Software Notices
+
+This project includes the following third-party libraries:
+
+1. FastAPI
+   License: MIT
+   https://github.com/fastapi/fastapi
+
+2. Uvicorn
+   License: BSD-3-Clause
+   https://github.com/encode/uvicorn
+
+3. OpenTimestamps Client
+   License: MIT
+   https://github.com/opentimestamps/opentimestamps-client
+
+4. python-multipart
+   License: MIT
+   https://github.com/andrew-d/python-multipart
+
+5. rfc3161ng
+   License: GNU Lesser General Public License v3.0 (LGPL-3.0)
+   https://github.com/trbs/rfc3161ng
+
+The rfc3161ng library is used as an unmodified, dynamically linked dependency.
+Its license does not affect the licensing of this project.
