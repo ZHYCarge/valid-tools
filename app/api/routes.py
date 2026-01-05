@@ -73,6 +73,7 @@ def site_info():
     return {
         "icp_info": settings.icp_info,
         "mps_info": settings.mps_info,
+        "mps_code": settings.mps_code,
     }
 
 

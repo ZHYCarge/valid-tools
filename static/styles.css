@@ -418,6 +418,19 @@ details summary {
   margin: 6px 0 0;
   display: inline-flex;
   align-items: center;
+  gap: 6px;
+}
+
+.record-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.record-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
 }
 
 .record-sep {

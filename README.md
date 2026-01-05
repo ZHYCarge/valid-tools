@@ -127,7 +127,8 @@ docker run -d \
 | BTC_EXPLORER_HEIGHT_URL | 比特币区块浏览器链接（按区块高度，哈希缺失时使用），默认 `https://blockchair.com/bitcoin/block/{height}` |
 | LTC_EXPLORER_HEIGHT_URL | 莱特币区块浏览器链接（按区块高度，哈希缺失时使用），默认 `https://blockchair.com/litecoin/block/{height}` |
 | ICP_INFO | ICP 备案信息文本（可选，链接固定指向 `https://beian.miit.gov.cn`） |
-| MPS_INFO | 公安备案信息文本（可选，链接固定指向 `https://beian.mps.gov.cn/#/query/webSearch`） |
+| MPS_INFO | 公安备案信息文本（可选，用于链接显示文案） |
+| MPS_CODE | 公安备案验证值（可选，用于链接指向 `https://beian.mps.gov.cn/#/query/webSearch?code=...`） |
 | DATA_DIR | 数据目录根路径，默认 `/data` 或 `./data` |
 | BASIC_AUTH_USER | 登录用户名，默认 `admin` |
 | BASIC_AUTH_PASS | 登录密码，默认 `admin` |
@@ -158,3 +159,6 @@ and LGPL-3.0. See THIRD_PARTY_NOTICES for details.
 - 删除掉之前的基础验证，改为正常的后台登录管理模式
 - 严格权限管理：未登录不允许访问管理页面，同时未登录不允许将数据保存在数据库中
 - 增加ICP备案和公安备案的悬挂信息
+
+### v1.2.1
+- 完善公安备案要求信息

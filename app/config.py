@@ -30,6 +30,7 @@ class Settings:
     basic_auth_pass: str
     icp_info: str
     mps_info: str
+    mps_code: str
 
 
 def load_settings() -> Settings:
@@ -78,6 +79,7 @@ def load_settings() -> Settings:
     basic_auth_pass = os.environ.get("BASIC_AUTH_PASS", "admin")
     icp_info = os.environ.get("ICP_INFO") or os.environ.get("ICP-INFO") or ""
     mps_info = os.environ.get("MPS_INFO") or os.environ.get("MPS-INFO") or ""
+    mps_code = os.environ.get("MPS_CODE") or os.environ.get("MPS-CODE") or ""
     return Settings(
         tsa_url=tsa_url,
         ots_calendar_urls=ots_calendar_urls,
@@ -96,4 +98,5 @@ def load_settings() -> Settings:
         basic_auth_pass=basic_auth_pass,
         icp_info=icp_info,
         mps_info=mps_info,
+        mps_code=mps_code,
     )

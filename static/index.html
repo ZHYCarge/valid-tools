@@ -10,7 +10,7 @@
     <div class="page">
       <div class="topbar">
         <header class="brand">
-          <h1>存证系统v1.2.0</h1>
+          <h1>存证系统v1.2.1</h1>
           <p>极简工作台 · 快速上传、验证与管理存证记录</p>
         </header>
         <a class="nav-link" id="loginLink" href="/static/login.html">登录</a>
@@ -80,12 +80,13 @@
         });
       }
 
-      function renderRecordInfo(target, icpText, mpsText) {
+      function renderRecordInfo(target, icpText, mpsText, mpsCode) {
         if (!target) return;
         const icp = String(icpText || "").trim();
         const mps = String(mpsText || "").trim();
+        const code = String(mpsCode || "").trim();
         target.textContent = "";
-        if (!icp && !mps) {
+        if (!icp && !mps && !code) {
           target.classList.add("hidden");
           return;
         }
@@ -97,19 +98,30 @@
           icpLink.textContent = icp;
           target.appendChild(icpLink);
         }
-        if (icp && mps) {
+        if (icp && (mps || code)) {
           const sep = document.createElement("span");
           sep.className = "record-sep";
           sep.textContent = "|";
           target.appendChild(sep);
         }
-        if (mps) {
+        if (mps || code) {
           const mpsLink = document.createElement("a");
-          mpsLink.href = "https://beian.mps.gov.cn/#/query/webSearch";
+          const mpsUrl = code
+            ? `https://beian.mps.gov.cn/#/query/webSearch?code=${encodeURIComponent(code)}`
+            : "https://beian.mps.gov.cn/#/query/webSearch";
+          mpsLink.href = mpsUrl;
           mpsLink.target = "_blank";
           mpsLink.rel = "noopener";
-          mpsLink.textContent = mps;
-          target.appendChild(mpsLink);
+          mpsLink.textContent = mps || "公安备案";
+          const mpsIcon = document.createElement("img");
+          mpsIcon.src = "/static/备案图标.png";
+          mpsIcon.alt = "公安备案图标";
+          mpsIcon.className = "record-icon";
+          const mpsWrap = document.createElement("span");
+          mpsWrap.className = "record-item";
+          mpsWrap.appendChild(mpsIcon);
+          mpsWrap.appendChild(mpsLink);
+          target.appendChild(mpsWrap);
         }
         target.classList.remove("hidden");
       }
@@ -117,7 +129,7 @@
       async function refreshFooterInfo() {
         const resp = await fetch("/api/site-info");
         const data = await resp.json();
-        renderRecordInfo(recordInfo, data.icp_info, data.mps_info);
+        renderRecordInfo(recordInfo, data.icp_info, data.mps_info, data.mps_code);
       }
 
       refreshAuth();
